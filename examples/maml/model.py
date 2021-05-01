@@ -32,3 +32,24 @@ class ConvolutionalNeuralNetwork(MetaModule):
         features = features.view((features.size(0), -1))
         logits = self.classifier(features, params=self.get_subdict(params, 'classifier'))
         return logits
+
+
+class PolicyNetwork(MetaModule):
+    def __init__(self, in_dims, out_dims, hidden_size=256):
+        super(PolicyNetwork, self).__init__()
+        self.in_dims = in_dims
+        self.out_dims = out_dims
+        self.hidden_size = hidden_size
+
+        self.features = MetaSequential(
+            MetaLinear(in_dims, hidden_size),
+            nn.ReLU(),
+            MetaLinear(hidden_size, hidden_size),
+            nn.ReLU(),
+            MetaLinear(hidden_size, out_dims)
+        )
+
+    def forward(self, inputs, params=None):
+        features = self.features(inputs, params=self.get_subdict(params, 'features'))
+        outputs = features.view((features.size(0), -1))
+        return outputs
