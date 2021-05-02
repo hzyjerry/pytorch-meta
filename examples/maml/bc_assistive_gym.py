@@ -13,7 +13,6 @@ from model import ConvolutionalNeuralNetwork, PolicyNetwork
 logger = logging.getLogger(__name__)
 
 
-
 def get_loss(output, targets):
     """Compute the accuracy (after adaptation) of MAML on the test/query points
 
@@ -35,7 +34,6 @@ def get_loss(output, targets):
     return -1 * output.log_prob(targets).sum(dim=1).mean()
 
 
-
 def train(args):
     logger.warning('This script is an example to showcase the MetaModule and '
                    'data-loading features of Torchmeta, and as such has been '
@@ -46,25 +44,20 @@ def train(args):
                    'tristandeleu/pytorch-maml`.')
 
     inputs = [
-        "new_models/210429/dataset/BedBathingBaxterHuman-v0217_0-v1-human-coop-robot-coop_10k",
-        "new_models/210429/dataset/BedBathingJacoHuman-v0217_0-v1-human-coop-robot-coop_10k",
-        "new_models/210429/dataset/BedBathingPR2Human-v0217_0-v1-human-coop-robot-coop_10k",
-        "new_models/210429/dataset/BedBathingPandaHuman-v0217_0-v1-human-coop-robot-coop_10k",
-        "new_models/210429/dataset/BedBathingSawyerHuman-v0217_0-v1-human-coop-robot-coop_10k",
-        "new_models/210429/dataset/BedBathingStretchHuman-v0217_0-v1-human-coop-robot-coop_10k"
+        "new_models/210429/dataset/BedBathingBaxterHuman-v0217_0-v1-human-coop-robot-coop_10k"
     ]
     env_name = "BedBathingBaxterHuman-v0217_0-v1"
     env = gym.make('assistive_gym:'+env_name)
 
-    dataset = behaviour(inputs, shots=1000, test_shots=200)
-    # dataset = sinusoid(shots=1000, test_shots=100)
-    # model = PolicyNetwork(1, 1).double
+    dataset = behaviour(inputs, shots=400, test_shots=1)
     dataloader = BatchMetaDataLoader(dataset,
                                      batch_size=args.batch_size,
                                      shuffle=True,
                                      num_workers=args.num_workers)
 
     model = PolicyNetwork(env.observation_space_human.shape[0], env.action_space_human.shape[0])
+    for key, v in model.features.named_parameters():
+        v.data = torch.nn.init.zeros_(v)
     model.to(device=args.device)
     model.train()
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -80,47 +73,20 @@ def train(args):
             train_inputs = train_inputs.to(device=args.device).float()
             train_targets = train_targets.to(device=args.device).float()
 
-            test_inputs, test_targets = batch['test']
-            test_inputs = test_inputs.to(device=args.device).float()
-            test_targets = test_targets.to(device=args.device).float()
-
-            outer_loss = torch.tensor(0., device=args.device)
-            accuracy = torch.tensor(0., device=args.device)
-            for task_idx, (train_input, train_target, test_input,
-                    test_target) in enumerate(zip(train_inputs, train_targets,
-                    test_inputs, test_targets)):
+            loss = torch.tensor(0., device=args.device)
+            for task_idx, (train_input, train_target) in enumerate(zip(train_inputs, train_targets)):
                 train_output = model(train_input)
-                inner_loss = get_loss(train_output, train_target)
+                loss += get_loss(train_output, train_target)
 
-                model.zero_grad()
-                params = gradient_update_parameters(model,
-                                                    inner_loss,
-                                                    step_size=args.step_size,
-                                                    first_order=args.first_order)
-
-                test_output = model(test_input, params=params)
-                outer_loss += get_loss(test_output, test_target)
-
-                with torch.no_grad():
-                    accuracy += get_loss(test_output, test_target)
-
-            outer_loss.div_(args.batch_size)
-            accuracy.div_(args.batch_size)
-
-            outer_loss.backward()
+            model.zero_grad()
+            loss.div_(len(dataloader))
+            loss.backward()
             meta_optimizer.step()
 
             pbar.update(1)
-            pbar.set_postfix(loss='{0:.4f}'.format(accuracy.item()))
+            pbar.set_postfix(loss='{0:.4f}'.format(loss.item()))
             batch_idx += 1
 
-    # # Save model
-    # if args.output_folder is not None:
-    #     filename = os.path.join(args.output_folder, 'maml_omniglot_'
-    #         '{0}shot_{1}way.th'.format(args.num_shots, args.num_ways))
-    #     with open(filename, 'wb') as f:
-    #         state_dict = model.state_dict()
-    #         torch.save(state_dict, f)
 
 if __name__ == '__main__':
     import argparse

@@ -1,4 +1,6 @@
 import torch.nn as nn
+import torch
+from torch.distributions.normal import Normal
 from torchmeta.modules import (MetaModule, MetaSequential, MetaConv2d,
                                MetaBatchNorm2d, MetaLinear)
 
@@ -35,21 +37,25 @@ class ConvolutionalNeuralNetwork(MetaModule):
 
 
 class PolicyNetwork(MetaModule):
-    def __init__(self, in_dims, out_dims, hidden_size=256):
+    def __init__(self, in_dims, out_dims, hidden_size=100):
         super(PolicyNetwork, self).__init__()
         self.in_dims = in_dims
-        self.out_dims = out_dims
+        self.out_dims = out_dims * 2 # diag guassian distribution
         self.hidden_size = hidden_size
 
         self.features = MetaSequential(
             MetaLinear(in_dims, hidden_size),
-            nn.ReLU(),
+            nn.Tanh(),
             MetaLinear(hidden_size, hidden_size),
-            nn.ReLU(),
-            MetaLinear(hidden_size, out_dims)
+            nn.Tanh(),
+            MetaLinear(hidden_size, self.out_dims)
         )
 
     def forward(self, inputs, params=None):
+        """Return logp
+        """
         features = self.features(inputs, params=self.get_subdict(params, 'features'))
         outputs = features.view((features.size(0), -1))
-        return outputs
+        mean, log_std = torch.split(outputs, int(self.out_dims / 2), dim=-1)
+        out_dist = Normal(mean, log_std.exp())
+        return out_dist
