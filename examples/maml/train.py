@@ -41,7 +41,6 @@ def train(args):
     model.to(device=args.device)
     model.train()
     meta_optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-
     # Training loop
     with tqdm(dataloader, total=args.num_batches) as pbar:
         for batch_idx, batch in enumerate(pbar):

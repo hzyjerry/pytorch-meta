@@ -48,7 +48,8 @@ class PolicyNetwork(MetaModule):
             nn.Tanh(),
             MetaLinear(hidden_size, hidden_size),
             nn.Tanh(),
-            MetaLinear(hidden_size, self.out_dims)
+            MetaLinear(hidden_size, self.out_dims),
+            nn.Tanh(),
         )
 
     def forward(self, inputs, params=None):
@@ -59,3 +60,11 @@ class PolicyNetwork(MetaModule):
         mean, log_std = torch.split(outputs, int(self.out_dims / 2), dim=-1)
         out_dist = Normal(mean, log_std.exp())
         return out_dist
+
+    def compute_action(self, inputs, params=None):
+        """Return logp
+        """
+        features = self.features(inputs, params=self.get_subdict(params, 'features'))
+        outputs = features.view((features.size(0), -1))
+        mean, log_std = torch.split(outputs, int(self.out_dims / 2), dim=-1)
+        return mean

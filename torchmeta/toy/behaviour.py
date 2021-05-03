@@ -1,5 +1,5 @@
 import numpy as np
-import os
+import os, sys
 import os.path as osp
 from ray.rllib.offline import JsonReader, ShuffledInput
 from torchmeta.utils.data import Task, MetaDataset
@@ -35,10 +35,11 @@ class Behaviour(MetaDataset):
 
 
     def __len__(self):
-        return self.num_tasks
+        return 2 ** 20
 
     def __getitem__(self, index):
-        dataset = self._datasets[index]
+        index_ = index % self.num_tasks
+        dataset = self._datasets[index_]
         num_samples = 0
         data = {'obs': [], 'actions': []}
         while num_samples < self.num_samples_per_task:
@@ -54,7 +55,6 @@ class Behaviour(MetaDataset):
         if num_samples > self.num_samples_per_task:
             data['obs'] = data['obs'][:self.num_samples_per_task]
             data['actions'] = data['actions'][:self.num_samples_per_task]
-        # import pdb; pdb.set_trace()
         task = BehaviourTask(index, data, self.num_samples_per_task, self.transform, self.target_transform)
 
 
