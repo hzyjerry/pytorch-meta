@@ -42,15 +42,29 @@ class PolicyNetwork(MetaModule):
         self.in_dims = in_dims
         self.out_dims = out_dims * 2 # diag guassian distribution
         self.hidden_size = hidden_size
+        fc1 = MetaLinear(in_dims, hidden_size)
+        fc2 = MetaLinear(hidden_size, hidden_size)
+        fc3 = MetaLinear(hidden_size, self.out_dims)
 
         self.features = MetaSequential(
-            MetaLinear(in_dims, hidden_size),
+            fc1,
             nn.Tanh(),
-            MetaLinear(hidden_size, hidden_size),
+            fc2,
             nn.Tanh(),
-            MetaLinear(hidden_size, self.out_dims),
+            fc3,
             nn.Tanh(),
         )
+
+        self.activation = {}
+        def get_activation(name):
+            def hook(model, input, output):
+                self.activation[name] = output.detach()
+            return hook
+
+        fc1.register_forward_hook(get_activation('fc1'))
+        fc2.register_forward_hook(get_activation('fc2'))
+        fc3.register_forward_hook(get_activation('fc3'))
+
 
     def forward(self, inputs, params=None):
         """Return logp
@@ -61,10 +75,10 @@ class PolicyNetwork(MetaModule):
         out_dist = Normal(mean, log_std.exp())
         return out_dist
 
-    def compute_action(self, inputs, params=None):
-        """Return logp
-        """
-        features = self.features(inputs, params=self.get_subdict(params, 'features'))
-        outputs = features.view((features.size(0), -1))
-        mean, log_std = torch.split(outputs, int(self.out_dims / 2), dim=-1)
-        return mean
+    # def compute_action(self, inputs, params=None):
+    #     """Return logp
+    #     """
+    #     features = self.features(inputs, params=self.get_subdict(params, 'features'))
+    #     outputs = features.view((features.size(0), -1))
+    #     mean, log_std = torch.split(outputs, int(self.out_dims / 2), dim=-1)
+    #     return mean

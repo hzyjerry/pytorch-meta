@@ -1,6 +1,8 @@
 import gym
 import ray
-from assistive_gym.utils import save_agent
+import os
+from dotmap import DotMap
+from assistive_gym.utils import *
 
 ray.init(num_cpus=1, ignore_reinit_error=True, log_to_driver=False)
 
@@ -25,9 +27,17 @@ class RLLibSaver(object):
         self.agent, self.checkpoint_agent, mapping_fn, _ = load_policy_pair(self.env, self.algo, envname, policy_pair, coop=True, seed=1)
 
 
-    def save(self, model, save_path, iteration):
+    def save(self, model=None, params=None, key="", save_path=None, iteration=-1, exp_params=DotMap()):
+        if not save_path:
+            return
+
         rllib_weights = self.agent.get_weights()
-        maml_weights = model.state_dict()
+        if model:
+            maml_weights = model.state_dict()
+        elif params:
+            maml_weights = params
+        else:
+            raise NotImplementedError
 
         rllib_keys = [k for k in rllib_weights['human_0'].keys() if "value" not in k]
         maml_keys = [k for k in maml_weights.keys()]
@@ -39,13 +49,17 @@ class RLLibSaver(object):
             assert rllib_weights['human_0'][rkey].shape == mweight.shape
             rllib_weights['human_0'][rkey] = mweight
 
-        import pdb; pdb.set_trace()
 
         # Sync weights
         self.agent.set_weights(rllib_weights)
         self.agent.workers.foreach_worker(lambda ev: ev.set_weights(rllib_weights))
-        import pdb; pdb.set_trace()
 
-        checkpoint_agent._iteration = iteration
-        checkpoint_path = save_agent(agent, checkpoint_agent, save_path, train_robot_only=False)
+        save_path_it = os.path.join(save_path, f"{key}itr_{iteration}")
+        os.makedirs(save_path_it, exist_ok=True)
+
+        # Save checkpoint
+        checkpoint_path = save_agent(self.agent, self.checkpoint_agent, save_path_it, train_robot_only=False)
+        print(f"Saving model to {checkpoint_path}")
+        # Save params
+        save_params(save_path_it, exp_params)
         return checkpoint_path

@@ -25,6 +25,7 @@ class Behaviour(MetaDataset):
         for input_path in inputs:
             # Cache all samples in rllib, to ensure stochastic loading
             data_paths = [osp.join(input_path, f) for f in os.listdir(input_path)]
+            print(f"Loading from {input_path}: {len(data_paths)} files")
             # dataset = ShuffledInput(JsonReader(data_paths), n=num_samples_per_task)
             dataset = ShuffledInput(JsonReader(data_paths))
             self._datasets.append(dataset)
